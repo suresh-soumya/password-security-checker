@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en" data-strength="none">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Password Security Analyzer</title>
+  <meta name="description" content="Analyze password strength, entropy, real-world crack time, pattern vulnerabilities and data breach exposure — with k-anonymity protection." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════
+       Design Tokens
+    ═══════════════════════════════════════════════════════════════════ */
+    :root {
+      --bg:           #080b12;
+      --bg-card:      rgba(255,255,255,0.04);
+      --bg-hover:     rgba(255,255,255,0.07);
+      --border:       rgba(255,255,255,0.08);
+      --border-act:   rgba(255,255,255,0.18);
+      --text:         #f0f2f8;
+      --text-2:       #8892a4;
+      --text-3:       #3d4556;
+      --accent:       #6366f1;
+      --accent-l:     #818cf8;
+      --shadow-btn:   0 4px 24px rgba(99,102,241,0.45);
+      --shadow-card:  0 8px 40px rgba(0,0,0,0.5);
+      --tr:           0.28s cubic-bezier(.4,0,.2,1);
+      --r-sm: 8px; --r-md: 14px; --r-lg: 20px; --r-xl: 28px;
+
+      /* strength palette (css classes .cl-low / .cl-med / .cl-high) */
+      --low-c:#ef4444; --low-bg:rgba(239,68,68,.10);  --low-bd:rgba(239,68,68,.30);
+      --med-c:#f59e0b; --med-bg:rgba(245,158,11,.10); --med-bd:rgba(245,158,11,.30);
+      --hig-c:#10b981; --hig-bg:rgba(16,185,129,.10); --hig-bd:rgba(16,185,129,.30);
+
+      --page-top: rgba(99,102,241,.12);
+      --page-bot: rgba(16,185,129,.05);
+    }
+    html[data-strength="low"]  { --page-top:rgba(239,68,68,.15);   --page-bot:rgba(239,68,68,.06);   }
+    html[data-strength="med"]  { --page-top:rgba(245,158,11,.14);  --page-bot:rgba(245,158,11,.05);  }
+    html[data-strength="high"] { --page-top:rgba(16,185,129,.13);  --page-bot:rgba(16,185,129,.06);  }
+
+    /* ═══ Reset ════════════════════════════════════════════════════════ */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{
+      font-family:'Inter',system-ui,sans-serif;
+      background:var(--bg);
+      background-image:
+        radial-gradient(ellipse 70% 45% at 50% -5%, var(--page-top) 0%,transparent 70%),
+        radial-gradient(ellipse 50% 35% at 85% 100%,var(--page-bot) 0%,transparent 65%);
+      color:var(--text);min-height:100vh;
+      display:flex;flex-direction:column;align-items:center;
+      padding:40px 16px 100px;line-height:1.6;
+      transition:background-image .6s ease;
+    }
+    .container{width:100%;max-width:780px}
+
+    /* ═══ Hero ══════════════════════════════════════════════════════════ */
+    .hero{text-align:center;margin-bottom:48px}
+    .hero-badge{
+      display:inline-flex;align-items:center;gap:8px;
+      background:var(--bg-card);border:1px solid var(--border);
+      border-radius:999px;padding:6px 20px;
+      font-size:.7rem;font-weight:700;color:var(--accent-l);
+      letter-spacing:.12em;text-transform:uppercase;margin-bottom:20px;
+    }
+    .hero h1{
+      font-size:clamp(2rem,5.5vw,3rem);font-weight:800;line-height:1.15;
+      background:linear-gradient(135deg,#f0f2f8 0%,#818cf8 55%,#6366f1 100%);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      margin-bottom:16px;
+    }
+    .hero p{font-size:1rem;color:var(--text-2);max-width:540px;margin:0 auto}
+
+    /* ═══ Card ══════════════════════════════════════════════════════════ */
+    .card{
+      background:var(--bg-card);border:1px solid var(--border);
+      border-radius:var(--r-xl);padding:36px 40px;margin-bottom:20px;
+      box-shadow:var(--shadow-card);backdrop-filter:blur(14px);
+      transition:border-color var(--tr);
+    }
+    .card:hover{border-color:var(--border-act)}
+    .card-title{font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:28px}
+
+    /* ═══ Input area ════════════════════════════════════════════════════ */
+    .input-wrap{position:relative;display:flex;align-items:center;margin-bottom:20px}
+    #pw{
+      width:100%;padding:16px 56px 16px 18px;
+      background:rgba(255,255,255,.05);border:1.5px solid var(--border);
+      border-radius:var(--r-md);color:var(--text);
+      font-family:'JetBrains Mono',monospace;font-size:1rem;letter-spacing:.04em;
+      outline:none;transition:all var(--tr);
+    }
+    #pw::placeholder{color:var(--text-3);font-family:'Inter',sans-serif;letter-spacing:0}
+    #pw:focus{border-color:var(--accent);background:rgba(99,102,241,.06);box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+    #toggle-pw{
+      position:absolute;right:14px;background:none;border:none;cursor:pointer;
+      color:var(--text-3);font-size:1.15rem;padding:4px;line-height:1;
+      transition:color var(--tr);user-select:none;
+    }
+    #toggle-pw:hover{color:var(--text)}
+
+    /* ═══ Live entropy meter ════════════════════════════════════════════ */
+    .meter-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:.78rem}
+    .meter-lbl{color:var(--text-3);font-weight:600;letter-spacing:.05em;text-transform:uppercase}
+    #live-bits{color:var(--accent-l);font-family:'JetBrains Mono',monospace;font-weight:600}
+    .meter-track{height:6px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden;margin-bottom:8px}
+    #live-bar{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#818cf8);transition:width .35s cubic-bezier(.4,0,.2,1),background .35s}
+    #live-bar.bar-low{background:linear-gradient(90deg,#dc2626,#f87171)}
+    #live-bar.bar-med{background:linear-gradient(90deg,#d97706,#fcd34d)}
+    #live-bar.bar-hig{background:linear-gradient(90deg,#059669,#34d399)}
+    .meter-hint{font-size:.76rem;color:var(--text-3);min-height:1.2em;margin-bottom:28px;transition:color var(--tr)}
+    .entropy-note{font-size:.72rem;color:var(--text-3);margin-top:4px;font-style:italic}
+
+    /* ═══ Submit button ═════════════════════════════════════════════════ */
+    #analyze-btn{
+      display:flex;align-items:center;justify-content:center;gap:10px;
+      width:100%;padding:15px 24px;border:none;border-radius:var(--r-md);
+      background:linear-gradient(135deg,#6366f1 0%,#818cf8 100%);
+      color:#fff;font-family:'Inter',sans-serif;font-size:1rem;font-weight:700;
+      letter-spacing:.03em;cursor:pointer;box-shadow:var(--shadow-btn);
+      transition:all var(--tr);overflow:hidden;
+    }
+    #analyze-btn:hover{transform:translateY(-2px);box-shadow:0 10px 34px rgba(99,102,241,.58)}
+    #analyze-btn:active{transform:translateY(0)}
+    #analyze-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:none}
+    #analyze-btn.loading .spinner{display:block}
+    #analyze-btn.loading .btn-txt{opacity:.7}
+    @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* ═══ Error message ═════════════════════════════════════════════════ */
+    #err-msg{display:none;margin-top:14px;padding:12px 16px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);border-radius:var(--r-sm);color:#f87171;font-size:.85rem;font-weight:500}
+
+    /* ═══ Privacy notice ════════════════════════════════════════════════ */
+    .privacy-notice{display:flex;align-items:center;gap:8px;margin-top:14px;padding:10px 14px;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.14);border-radius:var(--r-sm);font-size:.75rem;color:var(--text-3)}
+
+    /* ═══ Divider ═══════════════════════════════════════════════════════ */
+    .divider{display:flex;align-items:center;gap:14px;margin-bottom:20px;color:var(--text-3);font-size:.7rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+    /* ═══ Results ═══════════════════════════════════════════════════════ */
+    #results{display:none;animation:fadeUp .4s ease both}
+    #results.visible{display:block}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+
+    /* ─── Score panel ═══════════════════════════════════════════════════ */
+    .score-panel{
+      display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;
+      border-radius:var(--r-xl);padding:28px 32px;margin-bottom:20px;
+      border:1px solid var(--border-act);background:var(--bg-card);
+      box-shadow:var(--shadow-card);position:relative;overflow:hidden;
+    }
+    .score-panel::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 5% 50%,var(--score-glow,rgba(99,102,241,.15)) 0%,transparent 60%)}
+
+    .score-ring-wrap{position:relative;width:120px;height:120px;flex-shrink:0}
+    .score-ring-svg{width:120px;height:120px;transform:rotate(-90deg)}
+    .ring-bg{fill:none;stroke:rgba(255,255,255,.06);stroke-width:10}
+    .ring-fg{fill:none;stroke-width:10;stroke-linecap:round;transition:stroke-dashoffset 1s cubic-bezier(.4,0,.2,1),stroke .4s}
+    .ring-fg.rg-low   {stroke:var(--low-c)}
+    .ring-fg.rg-med   {stroke:var(--med-c)}
+    .ring-fg.rg-high  {stroke:var(--hig-c)}
+    .ring-fg.rg-none  {stroke:var(--accent-l)}
+    .score-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+    .score-num{font-size:2rem;font-weight:800;font-family:'JetBrains Mono',monospace;line-height:1}
+    .score-max{font-size:.7rem;color:var(--text-3);font-weight:600}
+
+    .score-info{}
+    .score-grade{
+      display:inline-block;padding:5px 20px;border-radius:999px;
+      font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+      border:1.5px solid currentColor;margin-bottom:10px;
+    }
+    .grade-a{color:var(--hig-c);border-color:var(--hig-c)}
+    .grade-b{color:#34d399;border-color:#34d399}
+    .grade-c{color:var(--med-c);border-color:var(--med-c)}
+    .grade-d{color:#fb923c;border-color:#fb923c}
+    .grade-f{color:var(--low-c);border-color:var(--low-c)}
+
+    .score-label{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+    .score-pts-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .score-pt-chip{
+      font-size:.7rem;font-weight:600;padding:3px 10px;border-radius:999px;
+      background:rgba(255,255,255,.06);color:var(--text-2);
+    }
+    .score-pt-chip b{color:var(--text)}
+
+    /* ─── Warning banner ════════════════════════════════════════════════ */
+    #pattern-banner{
+      display:none;padding:14px 18px;margin-bottom:20px;
+      background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+      border-radius:var(--r-md);color:#fca5a5;font-size:.875rem;font-weight:600;
+      animation:pulse-border 2s ease infinite;
+    }
+    @keyframes pulse-border{
+      0%,100%{border-color:rgba(239,68,68,.3)}
+      50%{border-color:rgba(239,68,68,.7)}
+    }
+    #pattern-banner.visible{display:flex;gap:12px;align-items:flex-start}
+    .banner-icon{font-size:1.3rem;flex-shrink:0;margin-top:1px}
+    .banner-body{}
+    .banner-title{font-weight:700;margin-bottom:4px}
+    .banner-list{list-style:none;display:flex;flex-direction:column;gap:3px;margin-top:6px}
+    .banner-list li{font-size:.8rem;color:#f87171;font-weight:500}
+
+    /* ─── Strength panel ════════════════════════════════════════════════ */
+    .sp{border-radius:var(--r-lg);padding:22px 28px;margin-bottom:20px;border:1px solid;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+    .sp::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% -10%,currentColor 0%,transparent 70%);opacity:.05}
+    .sp.cl-low   {background:var(--low-bg);border-color:var(--low-bd);color:var(--low-c);box-shadow:0 0 50px rgba(239,68,68,.18)}
+    .sp.cl-med   {background:var(--med-bg);border-color:var(--med-bd);color:var(--med-c);box-shadow:0 0 50px rgba(245,158,11,.18)}
+    .sp.cl-high  {background:var(--hig-bg);border-color:var(--hig-bd);color:var(--hig-c);box-shadow:0 0 50px rgba(16,185,129,.18)}
+    .sp-inner{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+    .sp-badge{font-size:.72rem;font-weight:800;letter-spacing:.14em;text-transform:uppercase;border:1.5px solid currentColor;border-radius:999px;padding:5px 18px;white-space:nowrap;opacity:.9}
+    .sp-info{flex:1;min-width:180px}
+    .sp-lbl{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;opacity:.6;margin-bottom:4px}
+    .sp-msg{font-size:.88rem;color:var(--text-2);line-height:1.55}
+
+    /* ─── Why this score ════════════════════════════════════════════════ */
+    .why-list{display:flex;flex-direction:column;gap:8px}
+    .why-item{
+      display:flex;align-items:flex-start;gap:10px;padding:10px 14px;
+      border-radius:var(--r-sm);font-size:.84rem;line-height:1.5;
+    }
+    .why-item.pos{background:rgba(16,185,129,.07);color:#6ee7b7}
+    .why-item.neg{background:rgba(239,68,68,.07);color:#fca5a5}
+    .why-item.neu{background:rgba(245,158,11,.07);color:#fcd34d}
+    .why-icon{font-size:.95rem;flex-shrink:0;margin-top:1px;font-weight:700}
+
+    /* ─── Dual crack time ═══════════════════════════════════════════════ */
+    .crack-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+    .crack-card{
+      background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);
+      padding:20px 22px;display:flex;align-items:flex-start;gap:14px;box-shadow:var(--shadow-card);
+      transition:all var(--tr);
+    }
+    .crack-card:hover{border-color:var(--border-act);transform:translateY(-2px)}
+    .crack-icon{font-size:1.6rem;flex-shrink:0}
+    .crack-body{}
+    .crack-lbl{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:4px}
+    .crack-val{font-size:1.05rem;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;line-height:1.3}
+    .crack-note{font-size:.7rem;color:var(--text-3);margin-top:4px;line-height:1.45}
+
+    /* ─── Metric chips row ══════════════════════════════════════════════ */
+    .metrics-row{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+    .mc{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px;text-align:center;box-shadow:var(--shadow-card);transition:all var(--tr)}
+    .mc:hover{border-color:var(--border-act);transform:translateY(-3px)}
+    .mc-icon{font-size:1.4rem;margin-bottom:8px}
+    .mc-lbl{font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
+    .mc-val{font-size:1.5rem;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--text)}
+    .mc-sub{font-size:.7rem;color:var(--text-3);margin-top:3px}
+
+    /* ─── Breach card ═══════════════════════════════════════════════════ */
+    .breach-card{border-radius:var(--r-lg);padding:20px 26px;margin-bottom:20px;border:1px solid;display:flex;align-items:center;gap:18px;box-shadow:var(--shadow-card)}
+    .breach-card.danger {background:var(--low-bg);border-color:var(--low-bd)}
+    .breach-card.warning{background:var(--med-bg);border-color:var(--med-bd)}
+    .breach-card.safe   {background:var(--hig-bg);border-color:var(--hig-bd)}
+    .breach-icon{font-size:2rem;flex-shrink:0}
+    .breach-body{flex:1}
+    .breach-status{font-size:.92rem;font-weight:700;margin-bottom:3px}
+    .breach-card.danger  .breach-status{color:var(--low-c)}
+    .breach-card.warning .breach-status{color:var(--med-c)}
+    .breach-card.safe    .breach-status{color:var(--hig-c)}
+    .breach-detail{font-size:.8rem;color:var(--text-2);line-height:1.5}
+    .breach-reuse{font-size:.78rem;color:#fcd34d;margin-top:6px;font-weight:500}
+    .breach-count{font-family:'JetBrains Mono',monospace;font-size:1.5rem;font-weight:800;color:var(--low-c);text-align:right;white-space:nowrap}
+    .breach-count small{display:block;font-size:.6rem;color:var(--text-3);font-family:'Inter',sans-serif;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+
+    /* ─── Score breakdown table ══════════════════════════════════════════ */
+    .score-bd-grid{display:flex;flex-direction:column;gap:10px}
+    .score-bd-row{display:flex;align-items:center;gap:14px}
+    .bd-label{font-size:.8rem;font-weight:600;color:var(--text-2);width:160px;flex-shrink:0}
+    .bd-track{flex:1;height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+    .bd-fill{height:100%;border-radius:999px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+    .bd-pts{font-size:.8rem;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;white-space:nowrap;text-align:right;min-width:50px}
+    /* fill colours by label */
+    .bd-fill.bd-length   {background:linear-gradient(90deg,#6366f1,#818cf8)}
+    .bd-fill.bd-diversity{background:linear-gradient(90deg,#8b5cf6,#a78bfa)}
+    .bd-fill.bd-entropy  {background:linear-gradient(90deg,#0ea5e9,#38bdf8)}
+    .bd-fill.bd-breach   {background:linear-gradient(90deg,#10b981,#34d399)}
+
+    /* ─── Charset breakdown table ═══════════════════════════════════════ */
+    .breakdown-table{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:.875rem}
+    .breakdown-table thead th{color:var(--text-3);font-weight:600;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;padding:0 14px 8px;text-align:left}
+    .breakdown-table thead th:last-child{text-align:right}
+    .breakdown-table tbody tr{background:rgba(255,255,255,.03)}
+    .breakdown-table tbody td{padding:11px 14px;color:var(--text-2)}
+    .breakdown-table tbody td:first-child{border-radius:var(--r-sm) 0 0 var(--r-sm);font-weight:600;color:var(--text)}
+    .breakdown-table tbody td:last-child{border-radius:0 var(--r-sm) var(--r-sm) 0;text-align:right}
+    .mono{font-family:'JetBrains Mono',monospace;font-size:.82rem}
+
+    /* ─── Recommendations ═══════════════════════════════════════════════ */
+    .rec-list{display:flex;flex-direction:column;gap:10px}
+    .rec-item{display:flex;align-items:flex-start;gap:14px;padding:14px 18px;background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--r-md);transition:all var(--tr);font-size:.85rem;color:var(--text-2);line-height:1.6}
+    .rec-item:hover{background:var(--bg-hover);border-color:var(--border-act);transform:translateX(5px)}
+
+    /* ─── Re-analyze button ═════════════════════════════════════════════ */
+    #reanalyze-btn{display:block;width:100%;padding:13px 24px;margin-top:4px;border:1.5px solid var(--border-act);border-radius:var(--r-md);background:transparent;color:var(--text-2);font-family:'Inter',sans-serif;font-size:.9rem;font-weight:600;cursor:pointer;transition:all var(--tr)}
+    #reanalyze-btn:hover{background:var(--bg-hover);color:var(--text);border-color:var(--accent);box-shadow:0 0 14px rgba(99,102,241,.25)}
+
+    /* ─── Best practices ════════════════════════════════════════════════ */
+    .bp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:14px}
+    .bp-item{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:var(--r-md);padding:20px 18px;display:flex;flex-direction:column;gap:10px;transition:all var(--tr);position:relative;overflow:hidden}
+    .bp-item::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent-l));opacity:0;transition:opacity var(--tr)}
+    .bp-item:hover{background:var(--bg-hover);border-color:var(--border-act);transform:translateY(-3px)}
+    .bp-item:hover::before{opacity:1}
+    .bp-icon{font-size:1.5rem;line-height:1}
+    .bp-h{font-size:.875rem;font-weight:700;color:var(--text)}
+    .bp-d{font-size:.78rem;color:var(--text-2);line-height:1.6}
+
+    /* ─── Footer ════════════════════════════════════════════════════════ */
+    footer{text-align:center;font-size:.73rem;color:var(--text-3);margin-top:52px;line-height:1.8}
+    footer a{color:var(--accent-l);text-decoration:none}
+    footer a:hover{text-decoration:underline}
+
+    /* ─── Tooltipped label ══════════════════════════════════════════════ */
+    .has-tip{position:relative;cursor:help;border-bottom:1px dashed var(--text-3)}
+    .tip-box{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#1e2433;border:1px solid var(--border-act);border-radius:var(--r-sm);padding:8px 12px;font-size:.75rem;color:var(--text-2);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .2s;z-index:10;line-height:1.5;text-align:center}
+    .has-tip:hover .tip-box{opacity:1}
+
+    /* ─── Responsive ════════════════════════════════════════════════════ */
+    @media(max-width:620px){
+      .card{padding:24px 18px}
+      .crack-grid{grid-template-columns:1fr}
+      .metrics-row{grid-template-columns:1fr 1fr}
+      .mc:nth-child(3){grid-column:1/-1}
+      .score-panel{grid-template-columns:1fr}
+      .score-ring-wrap{margin:0 auto}
+      .bp-grid{grid-template-columns:1fr 1fr}
+      .bd-label{width:110px}
+    }
+    @media(max-width:380px){
+      .metrics-row{grid-template-columns:1fr}
+      .mc:nth-child(3){grid-column:auto}
+      .bp-grid{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="hero-badge">🔐 Security Analyzer</div>
+    <h1>Password Security Analyzer</h1>
+    <p>Evaluate entropy, brute-force resistance, pattern vulnerabilities, and data breach exposure — with real-world attack simulations and scoring.</p>
+  </header>
+
+  <main>
+    <!-- Input card -->
+    <div class="card" id="input-card">
+      <p class="card-title">Analyze a Password</p>
+
+      <div class="input-wrap">
+        <input type="password" id="pw" placeholder="Enter your password…"
+               autocomplete="off" spellcheck="false" maxlength="128"
+               aria-label="Password to analyze" />
+        <button type="button" id="toggle-pw" aria-label="Show or hide password" title="Toggle visibility">👁️</button>
+      </div>
+
+      <!-- Entropy meter -->
+      <div class="meter-hdr">
+        <span class="meter-lbl has-tip">Live Entropy
+          <span class="tip-box">Entropy measures randomness — higher bits = harder to guess by brute force</span>
+        </span>
+        <span id="live-bits">— bits</span>
+      </div>
+      <div class="meter-track"><div id="live-bar"></div></div>
+      <p class="meter-hint" id="live-hint">Start typing to see live entropy…</p>
+
+      <button type="button" id="analyze-btn" aria-label="Analyze password">
+        <div class="spinner" aria-hidden="true"></div>
+        <span class="btn-txt">Analyze Password →</span>
+      </button>
+
+      <div id="err-msg" role="alert" aria-live="polite"></div>
+
+      <div class="privacy-notice">
+        🔒 <span>Your password is <strong>never stored or sent in plain text</strong>. Only the first 5 SHA-1 hash characters reach HIBP (k-anonymity). Nothing is logged.</span>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div id="results" aria-live="polite">
+      <div class="divider">Security Report</div>
+
+      <!-- ① Score panel -->
+      <div class="score-panel" id="score-panel">
+        <div class="score-ring-wrap">
+          <svg class="score-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="50"/>
+            <circle class="ring-fg" id="ring-fg" cx="60" cy="60" r="50"
+                    stroke-dasharray="314.16" stroke-dashoffset="314.16"/>
+          </svg>
+          <div class="score-center">
+            <span class="score-num" id="res-score-num">—</span>
+            <span class="score-max">/100</span>
+          </div>
+        </div>
+        <div class="score-info">
+          <p class="score-label">Security Score</p>
+          <div class="score-grade" id="res-grade">—</div>
+          <div class="score-pts-row" id="score-chips"></div>
+        </div>
+      </div>
+
+      <!-- ② Pattern warning banner -->
+      <div id="pattern-banner">
+        <div class="banner-icon">⚠️</div>
+        <div class="banner-body">
+          <p class="banner-title">This password contains common patterns and is vulnerable to dictionary attacks</p>
+          <ul class="banner-list" id="banner-list"></ul>
+        </div>
+      </div>
+
+      <!-- ③ Strength panel -->
+      <div class="sp" id="res-sp">
+        <div class="sp-inner">
+          <div class="sp-badge" id="res-sp-badge">—</div>
+          <div class="sp-info">
+            <p class="sp-lbl">Strength Assessment</p>
+            <p class="sp-msg" id="res-sp-msg">—</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ④ Why this score -->
+      <div class="card" id="why-card">
+        <p class="card-title">Why this score?</p>
+        <div class="why-list" id="why-list"></div>
+      </div>
+
+      <!-- ⑤ Score breakdown bars -->
+      <div class="card">
+        <p class="card-title">Score Breakdown</p>
+        <div class="score-bd-grid" id="score-bd-grid"></div>
+      </div>
+
+      <!-- ⑥ Dual crack times -->
+      <div class="crack-grid">
+        <div class="crack-card">
+          <div class="crack-icon">🤖</div>
+          <div class="crack-body">
+            <p class="crack-lbl">Brute-Force (Worst Case)</p>
+            <p class="crack-val" id="res-bf-time">—</p>
+            <p class="crack-note">GPU cluster at 10¹² guesses/sec — exhaustive keyspace</p>
+          </div>
+        </div>
+        <div class="crack-card">
+          <div class="crack-icon">📖</div>
+          <div class="crack-body">
+            <p class="crack-lbl">Real-World Attack (Practical)</p>
+            <p class="crack-val" id="res-rw-time">—</p>
+            <p class="crack-note">Dictionary + rule-based tools at 10⁹ guesses/sec</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑦ Metric chips -->
+      <div class="metrics-row">
+        <div class="mc">
+          <div class="mc-icon">⚡</div>
+          <p class="mc-lbl has-tip">Entropy
+            <span class="tip-box">log₂(charset) × length — bits of randomness</span>
+          </p>
+          <div class="mc-val" id="res-entropy">—</div>
+          <p class="mc-sub">bits</p>
+        </div>
+        <div class="mc">
+          <div class="mc-icon">📏</div>
+          <p class="mc-lbl">Length</p>
+          <div class="mc-val" id="res-length">—</div>
+          <p class="mc-sub">characters</p>
+        </div>
+        <div class="mc">
+          <div class="mc-icon">🔣</div>
+          <p class="mc-lbl">Charset Size</p>
+          <div class="mc-val" id="res-charset">—</div>
+          <p class="mc-sub">symbols</p>
+        </div>
+      </div>
+
+      <!-- ⑧ Breach status -->
+      <div class="breach-card" id="res-breach">
+        <div class="breach-icon" id="res-breach-icon">🔍</div>
+        <div class="breach-body">
+          <p class="breach-status" id="res-breach-status">—</p>
+          <p class="breach-detail" id="res-breach-detail">—</p>
+          <p class="breach-reuse" id="res-breach-reuse" style="display:none">⚠ Reusing this password across multiple sites significantly increases your risk exposure.</p>
+        </div>
+        <div class="breach-count" id="res-breach-count" style="display:none">
+          <span id="res-breach-num">0</span>
+          <small>breaches</small>
+        </div>
+      </div>
+
+      <!-- ⑨ Charset breakdown -->
+      <div class="card">
+        <p class="card-title">Character-Set Breakdown</p>
+        <table class="breakdown-table" aria-label="Password character-set breakdown">
+          <thead><tr><th>Character Pool</th><th>Pool Size</th><th>Entropy Contribution</th></tr></thead>
+          <tbody id="res-bd-body"></tbody>
+        </table>
+      </div>
+
+      <!-- ⑩ Recommendations -->
+      <div class="card">
+        <p class="card-title">Recommendations</p>
+        <div class="rec-list" id="res-recs"></div>
+      </div>
+
+      <button id="reanalyze-btn" onclick="document.getElementById('input-card').scrollIntoView({behavior:'smooth'})">
+        ↑ Try Another Password
+      </button>
+    </div><!-- /#results -->
+
+    <!-- Best practices -->
+    <div class="divider" style="margin-top:28px">Cybersecurity Best Practices</div>
+    <div class="card">
+      <p class="card-title">General Tips to Stay Secure Online</p>
+      <div class="bp-grid">
+        <div class="bp-item"><div class="bp-icon">🛡️</div><p class="bp-h">Enable Two-Factor Auth</p><p class="bp-d">Always add 2FA. Use an authenticator app (Authy, Google Authenticator) — stronger than SMS codes.</p></div>
+        <div class="bp-item"><div class="bp-icon">🔑</div><p class="bp-h">Use Strong, Unique Passwords</p><p class="bp-d">Each account needs a 12+ character password with mixed characters. Use Bitwarden or 1Password.</p></div>
+        <div class="bp-item"><div class="bp-icon">🔍</div><p class="bp-h">Monitor Breach Databases</p><p class="bp-d">Regularly check <em>haveibeenpwned.com</em> and enable breach alerts to find exposed credentials early.</p></div>
+        <div class="bp-item"><div class="bp-icon">🔄</div><p class="bp-h">Rotate High-Value Passwords</p><p class="bp-d">Change passwords for banking, email, and cloud accounts every 6–12 months as a hygiene practice.</p></div>
+        <div class="bp-item"><div class="bp-icon">🎣</div><p class="bp-h">Beware of Phishing</p><p class="bp-d">Never click unexpected links in emails or messages. Verify sender addresses — attackers mimic trusted brands.</p></div>
+        <div class="bp-item"><div class="bp-icon">📡</div><p class="bp-h">Avoid Public Wi-Fi</p><p class="bp-d">Public networks expose your traffic. Use a VPN, and never log in to sensitive accounts on shared networks.</p></div>
+        <div class="bp-item"><div class="bp-icon">🔒</div><p class="bp-h">Encrypt Sensitive Data</p><p class="bp-d">Encrypt files and drives with VeraCrypt, BitLocker, or FileVault to protect data at rest.</p></div>
+        <div class="bp-item"><div class="bp-icon">🧠</div><p class="bp-h">Use Passphrases</p><p class="bp-d">4+ random words (e.g. "coral-anvil-sunset-42") are easier to remember and harder to crack than complex short passwords.</p></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <p>Password Security Analyzer &mdash; built with <a href="https://flask.palletsprojects.com" target="_blank" rel="noopener">Flask</a> &amp; vanilla CSS &nbsp;|&nbsp; Powered by <a href="https://haveibeenpwned.com/API/v3" target="_blank" rel="noopener">Have I Been Pwned API</a></p>
+    <p style="margin-top:4px">⚠️ Passwords are analyzed in-memory only. Nothing is stored or transmitted except the first 5 SHA-1 hex characters for breach lookup.</p>
+  </footer>
+</div>
+
+<script>
+/* ─── Client-side entropy (mirrors Python logic) ─────────────────────── */
+function charsetSize(pw) {
+  let s = 0;
+  if (/[a-z]/.test(pw)) s += 26;
+  if (/[A-Z]/.test(pw)) s += 26;
+  if (/[0-9]/.test(pw)) s += 10;
+  if (/[^a-zA-Z0-9]/.test(pw)) s += 32;
+  return Math.max(s, 1);
+}
+function liveEntropy(pw) { return pw ? Math.log2(charsetSize(pw)) * pw.length : 0; }
+
+/* ─── Live meter ─────────────────────────────────────────────────────── */
+const pwEl   = document.getElementById('pw');
+const liveBar = document.getElementById('live-bar');
+const liveBits = document.getElementById('live-bits');
+const liveHint = document.getElementById('live-hint');
+const MAX_ENT  = 128;
+
+pwEl.addEventListener('input', updateMeter);
+
+function updateMeter() {
+  const pw  = pwEl.value;
+  const ent = liveEntropy(pw);
+  const pct = pw ? Math.min((ent / MAX_ENT) * 100, 100) : 0;
+  liveBits.textContent = pw ? `${ent.toFixed(1)} bits` : '— bits';
+  liveBar.style.width  = pct + '%';
+  liveBar.className    = '';
+  if (!pw) { liveHint.textContent = 'Start typing to see live entropy…'; liveHint.style.color = 'var(--text-3)'; return; }
+  if (ent < 28) { liveBar.classList.add('bar-low'); liveHint.textContent = '🔴 Weak — crackable almost instantly'; liveHint.style.color = 'var(--low-c)'; }
+  else if (ent < 56) { liveBar.classList.add('bar-med'); liveHint.textContent = '🟡 Medium — some resistance, but not enough'; liveHint.style.color = 'var(--med-c)'; }
+  else { liveBar.classList.add('bar-hig'); liveHint.textContent = '🟢 Strong — good brute-force resistance'; liveHint.style.color = 'var(--hig-c)'; }
+}
+
+/* ─── Show / hide toggle ─────────────────────────────────────────────── */
+let pwVis = false;
+document.getElementById('toggle-pw').addEventListener('click', () => {
+  pwVis = !pwVis;
+  pwEl.type = pwVis ? 'text' : 'password';
+  document.getElementById('toggle-pw').textContent = pwVis ? '🙈' : '👁️';
+});
+
+/* ─── Analyze button ─────────────────────────────────────────────────── */
+const analyzeBtn = document.getElementById('analyze-btn');
+const errMsg     = document.getElementById('err-msg');
+const resultsEl  = document.getElementById('results');
+
+analyzeBtn.addEventListener('click', runAnalysis);
+pwEl.addEventListener('keydown', e => { if (e.key === 'Enter') runAnalysis(); });
+
+async function runAnalysis() {
+  const password = pwEl.value;
+  errMsg.style.display = 'none';
+  if (!password) { showErr('Please enter a password to analyze.'); return; }
+
+  analyzeBtn.classList.add('loading');
+  analyzeBtn.disabled = true;
+  analyzeBtn.querySelector('.btn-txt').textContent = 'Analyzing…';
+
+  try {
+    const resp = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showErr(data.error || 'Unexpected error — please try again.'); return; }
+    renderResults(data);
+  } catch {
+    showErr('Network error — could not reach the server.');
+  } finally {
+    analyzeBtn.classList.remove('loading');
+    analyzeBtn.disabled = false;
+    analyzeBtn.querySelector('.btn-txt').textContent = 'Analyze Password →';
+  }
+}
+
+/* ─── Render ─────────────────────────────────────────────────────────── */
+function renderResults(d) {
+  const strength = d.strength;
+  const breach   = d.breach;
+  const score    = d.score;
+  const patterns = d.patterns;
+
+  /* theme */
+  const themeKey = strength.key === 'strong' ? 'high' : strength.key === 'medium' ? 'med' : 'low';
+  document.documentElement.setAttribute('data-strength', themeKey);
+
+  /* ── Score ring ── */
+  const total = score.total;
+  const circumference = 314.16;
+  const offset = circumference - (total / 100) * circumference;
+  const ring = document.getElementById('ring-fg');
+  ring.style.strokeDashoffset = circumference; // reset first
+  setTimeout(() => { ring.style.strokeDashoffset = offset; }, 60);
+  ring.className = `ring-fg rg-${themeKey === 'high' ? 'high' : themeKey === 'med' ? 'med' : 'low'}`;
+  document.getElementById('res-score-num').textContent = total;
+
+  /* grade */
+  const gradeEl = document.getElementById('res-grade');
+  gradeEl.textContent = `Grade ${score.grade}`;
+  gradeEl.className = `score-grade ${score.grade_class}`;
+
+  /* score chips */
+  const chips = document.getElementById('score-chips');
+  chips.innerHTML = '';
+  const bd = score.breakdown;
+  [['length','Length'],['diversity','Diversity'],['entropy','Entropy'],['breach','Breach']].forEach(([k,lbl]) => {
+    const c = document.createElement('div');
+    c.className = 'score-pt-chip';
+    c.innerHTML = `${lbl}: <b>${bd[k].pts}/${bd[k].max}</b>`;
+    chips.appendChild(c);
+  });
+
+  /* page glow */
+  const glowMap = {high:'rgba(16,185,129,.20)',med:'rgba(245,158,11,.20)',low:'rgba(239,68,68,.25)'};
+  document.getElementById('score-panel').style.setProperty('--score-glow', glowMap[themeKey] || 'rgba(99,102,241,.15)');
+
+  /* ── Pattern banner ── */
+  const banner = document.getElementById('pattern-banner');
+  const bannerList = document.getElementById('banner-list');
+  bannerList.innerHTML = '';
+  if (patterns.found) {
+    patterns.warnings.forEach(w => {
+      const li = document.createElement('li');
+      const sev = w.severity === 'critical' ? '🔴' : w.severity === 'high' ? '🟠' : '🟡';
+      li.textContent = `${sev} ${w.message}`;
+      bannerList.appendChild(li);
+    });
+    banner.classList.add('visible');
+  } else {
+    banner.classList.remove('visible');
+  }
+
+  /* ── Strength panel ── */
+  const spEl = document.getElementById('res-sp');
+  const clsMap = { low: 'cl-low', medium: 'cl-med', strong: 'cl-high' };
+  spEl.className = `sp ${clsMap[strength.key] || 'cl-low'}`;
+  document.getElementById('res-sp-badge').textContent = strength.label + ' Password';
+  document.getElementById('res-sp-msg').textContent   = strength.message;
+
+  /* ── Why this score ── */
+  const whyList = document.getElementById('why-list');
+  whyList.innerHTML = '';
+  score.explanation.forEach(e => {
+    const div = document.createElement('div');
+    const cls = e.icon === '✔' ? 'pos' : e.icon === '✖' ? 'neg' : 'neu';
+    div.className = `why-item ${cls}`;
+    div.innerHTML = `<span class="why-icon">${e.icon}</span><span>${e.text}</span>`;
+    whyList.appendChild(div);
+  });
+
+  /* ── Score breakdown bars ── */
+  const bdGrid = document.getElementById('score-bd-grid');
+  bdGrid.innerHTML = '';
+  [['length','bd-length'],['diversity','bd-diversity'],['entropy','bd-entropy'],['breach','bd-breach']].forEach(([k, fillCls]) => {
+    const row = bd[k];
+    const pct = (row.pts / row.max) * 100;
+    const div = document.createElement('div');
+    div.className = 'score-bd-row';
+    div.innerHTML = `
+      <span class="bd-label">${row.label}</span>
+      <div class="bd-track"><div class="bd-fill ${fillCls}" style="width:0%" data-target="${pct}%"></div></div>
+      <span class="bd-pts">${row.pts}/${row.max}</span>
+    `;
+    bdGrid.appendChild(div);
+  });
+  // Animate bars
+  requestAnimationFrame(() => setTimeout(() => {
+    bdGrid.querySelectorAll('.bd-fill').forEach(el => { el.style.width = el.dataset.target; });
+  }, 80));
+
+  /* ── Crack times ── */
+  document.getElementById('res-bf-time').textContent = d.brute_force_crack_time;
+  document.getElementById('res-rw-time').textContent = d.real_world_crack_time;
+
+  /* ── Metrics ── */
+  document.getElementById('res-entropy').textContent = d.entropy;
+  document.getElementById('res-length').textContent  = d.length;
+  document.getElementById('res-charset').textContent = d.charset_size;
+
+  /* ── Breach ── */
+  const bCard = document.getElementById('res-breach');
+  bCard.className = `breach-card ${breach.status_class}`;
+  document.getElementById('res-breach-icon').textContent   = breach.found ? '🚨' : breach.error ? '⚡' : '✅';
+  document.getElementById('res-breach-status').textContent = breach.status_label;
+  const bDetail = document.getElementById('res-breach-detail');
+  const bReuse  = document.getElementById('res-breach-reuse');
+  const bCount  = document.getElementById('res-breach-count');
+  if (breach.found) {
+    bDetail.textContent   = 'This password was exposed in data breaches. Stop using it immediately and change it on every account where it appears.';
+    bReuse.style.display  = 'block';
+    bCount.style.display  = 'block';
+    document.getElementById('res-breach-num').textContent = breach.count.toLocaleString();
+  } else if (breach.error) {
+    bDetail.textContent   = breach.error + ' Breach check is inconclusive — assume the worst for high-value accounts.';
+    bReuse.style.display  = 'block';
+    bCount.style.display  = 'none';
+  } else {
+    bDetail.textContent   = '✔ Not found in any known breach database (HIBP). This is a good sign — but if you reuse this password, your other accounts may still be at risk.';
+    bReuse.style.display  = 'block';
+    bCount.style.display  = 'none';
+  }
+
+  /* ── Charset breakdown table ── */
+  const tbody = document.getElementById('res-bd-body');
+  tbody.innerHTML = '';
+  if (d.charset_breakdown?.length) {
+    d.charset_breakdown.forEach(row => {
+      const contribution = (Math.log2(row.size) * d.length).toFixed(1);
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${row.icon} ${row.label}</td><td class="mono">+${row.size}</td><td class="mono" style="text-align:right">${contribution} bits</td>`;
+      tbody.appendChild(tr);
+    });
+    const totalTr = document.createElement('tr');
+    totalTr.style.fontWeight = '700';
+    totalTr.innerHTML = `<td style="color:var(--text)">Total Entropy</td><td class="mono">${d.charset_size}</td><td class="mono" style="color:var(--accent-l);text-align:right">${d.entropy} bits</td>`;
+    tbody.appendChild(totalTr);
+  } else {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--text-3);text-align:center;padding:18px">No data</td></tr>';
+  }
+
+  /* ── Recommendations ── */
+  const recsList = document.getElementById('res-recs');
+  recsList.innerHTML = '';
+  strength.tips.forEach(tip => {
+    const match = tip.match(/^(\S+)\s+(.+)$/);
+    const icon  = match ? match[1] : '•';
+    const text  = match ? match[2] : tip;
+    const div = document.createElement('div');
+    div.className = 'rec-item';
+    div.innerHTML = `<span>${icon}</span><span>${text}</span>`;
+    recsList.appendChild(div);
+  });
+
+  /* ── Show & scroll ── */
+  resultsEl.classList.add('visible');
+  setTimeout(() => resultsEl.scrollIntoView({ behavior: 'smooth', block: 'start' }), 120);
+}
+
+function showErr(msg) { errMsg.textContent = msg; errMsg.style.display = 'block'; }
+</script>
+</body>
+</html>
