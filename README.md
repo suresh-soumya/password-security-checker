@@ -1,4 +1,4 @@
-# 🔐 Password Security Checker
+# 🔐 Password Security Checker 2
 
 An advanced Python-based tool to analyze password strength and detect potential security risks such as data breaches.
 
